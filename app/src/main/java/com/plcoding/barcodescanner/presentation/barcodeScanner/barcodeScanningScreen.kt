@@ -94,7 +94,7 @@ fun BarcodeScannerDemo(
                     // Save the barcode value
                     onScannedCodeUpdate(barcode)
                 },
-                onTextScanned = { text ->
+                onTextFound = { text ->
                     // Save the text value
                     onScannedTextUpdate(text.toLowerCase())
                 }
@@ -195,11 +195,10 @@ fun BarcodeScannerDemo(
     }
 
 }
-
 @Composable
 fun HybridBarcodeScannerScreen(
     onBarcodeScanned: (String) -> Unit,
-    onTextScanned: (String) -> Unit,
+    onTextFound: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -207,13 +206,18 @@ fun HybridBarcodeScannerScreen(
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
 
     // Camera and analysis components
-    val imageCapture = remember { ImageCapture.Builder().build() }
     val barcodeScanner = remember { BarcodeScanning.getClient() }
+
+    // Creating these inside a remember block ensures they won't be recreated on recomposition
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
 
     var capturedImageUri by remember { mutableStateOf<Uri?>(null) }
     var scannedTexts by remember { mutableStateOf<List<String>>(emptyList()) }
     var showTextSelection by remember { mutableStateOf(false) }
     var processingImage by remember { mutableStateOf(false) }
+    var cameraReady by remember { mutableStateOf(false) }
 
     // Disposable effect to clean up resources
     DisposableEffect(lifecycleOwner) {
@@ -232,20 +236,17 @@ fun HybridBarcodeScannerScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        // Camera Preview with live barcode detection
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier.fillMaxSize()
-        ) { view ->
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-            cameraProviderFuture.addListener({
+    // Function to set up the camera
+    LaunchedEffect(previewView) {
+        cameraProviderFuture.addListener({
+            try {
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Preview use case
-                val preview = Preview.Builder()
+                // Create new instances of use cases
+                val preview = Preview.Builder().build()
+                val newImageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                     .build()
-                    .also { it.setSurfaceProvider(view.surfaceProvider) }
 
                 // Live barcode scanning analyzer
                 val imageAnalyzer = ImageAnalysis.Builder()
@@ -263,31 +264,45 @@ fun HybridBarcodeScannerScreen(
 
                 val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
-                try {
-                    // Unbind previous use cases before rebinding
-                    cameraProvider.unbindAll()
+                // Unbind previous use cases before rebinding
+                cameraProvider.unbindAll()
 
-                    // Bind use cases to camera lifecycle
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageAnalyzer,
-                        imageCapture
-                    )
+                // Bind use cases to camera lifecycle
+                camera = cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageAnalyzer,
+                    newImageCapture
+                )
 
-                    Log.d("HybridScanner", "Camera set up successfully")
-                } catch (exc: Exception) {
-                    Log.e("HybridScanner", "Use case binding failed", exc)
-                }
-            }, ContextCompat.getMainExecutor(context))
-        }
+                // Set surface provider for preview
+                preview.setSurfaceProvider(previewView.surfaceProvider)
+
+                // Store the image capture use case
+                imageCapture = newImageCapture
+                cameraReady = true
+
+                Log.d("HybridScanner", "Camera set up successfully")
+            } catch (exc: Exception) {
+                Log.e("HybridScanner", "Use case binding failed", exc)
+                cameraReady = false
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        // Camera Preview with live barcode detection
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier.fillMaxSize()
+        )
 
         // Capture button and controls
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp),
+                .padding(bottom = 82.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (processingImage) {
@@ -300,6 +315,11 @@ fun HybridBarcodeScannerScreen(
             } else {
                 IconButton(
                     onClick = {
+                        if (!cameraReady || imageCapture == null) {
+                            Toast.makeText(context, "Camera not ready, please wait...", Toast.LENGTH_SHORT).show()
+                            return@IconButton
+                        }
+
                         processingImage = true
                         Log.d("HybridScanner", "Taking picture for text recognition")
 
@@ -307,41 +327,48 @@ fun HybridBarcodeScannerScreen(
                             val photoFile = createTempFile()
                             val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
-                            imageCapture.takePicture(
-                                outputOptions,
-                                ContextCompat.getMainExecutor(context),
-                                object : ImageCapture.OnImageSavedCallback {
-                                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                        val savedUri = outputFileResults.savedUri ?: Uri.fromFile(photoFile)
-                                        capturedImageUri = savedUri
+                            // Use the local variable to avoid null issues
+                            val capture = imageCapture
+                            if (capture != null) {
+                                capture.takePicture(
+                                    outputOptions,
+                                    ContextCompat.getMainExecutor(context),
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                            val savedUri = outputFileResults.savedUri ?: Uri.fromFile(photoFile)
+                                            capturedImageUri = savedUri
 
-                                        // Process the captured image for text only
-                                        processImageForText(
-                                            context,
-                                            savedUri,
-                                            onTextResult = { textBlocks ->
-                                                Log.d("HybridScanner", "Text processing complete: ${textBlocks.size} text blocks found")
-                                                scannedTexts = textBlocks.flatMap { block ->
-                                                    block.lines.map { it.text }
+                                            // Process the captured image for text only
+                                            processImageForText(
+                                                context,
+                                                savedUri,
+                                                onTextResult = { textBlocks ->
+                                                    Log.d("HybridScanner", "Text processing complete: ${textBlocks.size} text blocks found")
+                                                    scannedTexts = textBlocks.flatMap { block ->
+                                                        block.lines.map { it.text }
+                                                    }
+                                                    showTextSelection = true
+                                                    processingImage = false
+                                                },
+                                                onError = {
+                                                    Log.e("HybridScanner", "Text processing failed")
+                                                    Toast.makeText(context, "Error processing text", Toast.LENGTH_SHORT).show()
+                                                    processingImage = false
                                                 }
-                                                showTextSelection = true
-                                                processingImage = false
-                                            },
-                                            onError = {
-                                                Log.e("HybridScanner", "Text processing failed")
-                                                Toast.makeText(context, "Error processing text", Toast.LENGTH_SHORT).show()
-                                                processingImage = false
-                                            }
-                                        )
-                                    }
+                                            )
+                                        }
 
-                                    override fun onError(exception: ImageCaptureException) {
-                                        Log.e("HybridScanner", "Image capture failed", exception)
-                                        Toast.makeText(context, "Failed to capture image: ${exception.message}", Toast.LENGTH_SHORT).show()
-                                        processingImage = false
+                                        override fun onError(exception: ImageCaptureException) {
+                                            Log.e("HybridScanner", "Image capture failed", exception)
+                                            Toast.makeText(context, "Failed to capture image: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                            processingImage = false
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            } else {
+                                processingImage = false
+                                Toast.makeText(context, "Camera not initialized properly", Toast.LENGTH_SHORT).show()
+                            }
                         } catch (e: Exception) {
                             Log.e("HybridScanner", "Exception during image capture", e)
                             Toast.makeText(context, "Camera error: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -367,7 +394,7 @@ fun HybridBarcodeScannerScreen(
             TextSelectionDialog(
                 texts = scannedTexts,
                 onTextSelected = { selectedText ->
-                    onTextScanned(selectedText)
+                    onTextFound(selectedText)
                     Toast.makeText(context, "Text selected: $selectedText", Toast.LENGTH_SHORT).show()
                     showTextSelection = false
                 },

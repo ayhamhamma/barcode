@@ -75,13 +75,21 @@ class InventoryViewModel() : ViewModel() {
 
     var itemStatus by mutableStateOf<String?>(null)
 
+    var size by mutableStateOf(
+        listOf("")
+    )
+
+    var selectedSize by mutableStateOf<String?>(null)
+
+    fun updateSelectedSize(value: String?) {
+        selectedSize = value
+    }
+
     fun updateItemStatus(value: String?) {
         itemStatus = value
     }
 
     fun onShowDialogChange(value: Boolean) {
-
-
         if (value)
             markBoxAsDone(false)
         else {
@@ -190,16 +198,17 @@ class InventoryViewModel() : ViewModel() {
 
 
     fun onSkuChoose(sku: String) {
-        if (BOX_SKUS_LIST.contains(sku)) {
             viewModelScope.launch {
                 Repository.getItem(sku).collect { result ->
                     when (result) {
                         is Resource.Success -> {
+                            isSkuFound = false
                             itemName = result.data[0].name
                             categoryName = result.data[0].category
                             isSkuFound = true
                             newBoxNumber = result.data[0].box ?: ""
                             itemImage = result.data[0].image
+                            size = result.data.map { it.size ?: "" }
                         }
 
                         is Resource.Error -> {
@@ -213,9 +222,7 @@ class InventoryViewModel() : ViewModel() {
                     }
                 }
             }
-        } else {
-            isSkuFound = false
-        }
+
     }
 
     fun changeSkuDropDownExpand(expand: Boolean) {

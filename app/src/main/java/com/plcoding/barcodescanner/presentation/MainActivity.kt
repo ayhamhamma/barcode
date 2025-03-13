@@ -112,7 +112,10 @@ class MainActivity : ComponentActivity() {
                             quantityOne = viewModel.quantityOne,
                             quantityTwo = viewModel.quantityTwo,
                             itemStatus = viewModel.itemStatus,
-                            updateItemStatus = viewModel::updateItemStatus
+                            updateItemStatus = viewModel::updateItemStatus,
+                            sizeList = viewModel.size,
+                            selectedSize = viewModel.selectedSize,
+                            onSizeSelected = viewModel::updateSelectedSize
                         )
 
                     }
