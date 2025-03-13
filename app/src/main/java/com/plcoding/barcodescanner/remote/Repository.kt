@@ -5,6 +5,7 @@ import com.plcoding.barcodescanner.model.CategoriesResponse
 import com.plcoding.barcodescanner.model.ErrorResponse
 import com.plcoding.barcodescanner.model.ItemResponse
 import com.plcoding.barcodescanner.model.MarkBoxAsDoneRequest
+import com.plcoding.barcodescanner.model.SkuItemsResponse
 import com.plcoding.barcodescanner.model.SortRequest
 import com.plcoding.barcodescanner.model.SortResponse
 import com.plcoding.barcodescanner.utils.Resource
@@ -42,7 +43,7 @@ object Repository {
 
     fun getItem(
         sku: String
-    ): Flow<Resource<ItemResponse>> {
+    ): Flow<Resource<SkuItemsResponse>> {
         return flow {
             emit(Resource.Loading(true))
 

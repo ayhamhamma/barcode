@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
 
                 NavHost(
                     navController = navController,
-                    startDestination = INVENTORY_SCREEN +"/{ }" + "/{ }"
+                    startDestination = BARCODE_SCREEN
                 ) {
 
                     composable(
@@ -123,7 +123,7 @@ class MainActivity : ComponentActivity() {
                             navController = navController,
                             scannedCode = viewModel.scannedCode,
                             scannedText = viewModel.scannedText,
-                            isButtonEnabled = viewModel.isButtonEnabled,
+//                            isButtonEnabled = viewModel.isButtonEnabled,
                             onScannedCodeUpdate = viewModel::updateScannedCode,
                             onScannedTextUpdate = viewModel::updateScannedText
                         )

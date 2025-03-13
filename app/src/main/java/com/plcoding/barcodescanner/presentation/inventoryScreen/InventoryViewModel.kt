@@ -106,7 +106,7 @@ class InventoryViewModel() : ViewModel() {
     }
 
     init {
-        getBoxItemsByNumber(BOX_NUMBER)
+//        getBoxItemsByNumber(BOX_NUMBER)
         oldBoxNumber = BOX_NUMBER
         getAllCategories()
     }
@@ -195,11 +195,11 @@ class InventoryViewModel() : ViewModel() {
                 Repository.getItem(sku).collect { result ->
                     when (result) {
                         is Resource.Success -> {
-                            itemName = result.data.name
-                            categoryName = result.data.category
+                            itemName = result.data[0].name
+                            categoryName = result.data[0].category
                             isSkuFound = true
-                            newBoxNumber = result.data.box ?: ""
-                            itemImage = result.data.image
+                            newBoxNumber = result.data[0].box ?: ""
+                            itemImage = result.data[0].image
                         }
 
                         is Resource.Error -> {

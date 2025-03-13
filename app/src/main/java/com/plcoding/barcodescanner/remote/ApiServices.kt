@@ -5,6 +5,7 @@ import com.plcoding.barcodescanner.model.CategoriesResponse
 import com.plcoding.barcodescanner.model.ErrorResponse
 import com.plcoding.barcodescanner.model.ItemResponse
 import com.plcoding.barcodescanner.model.MarkBoxAsDoneRequest
+import com.plcoding.barcodescanner.model.SkuItemsResponse
 import com.plcoding.barcodescanner.model.SortRequest
 import com.plcoding.barcodescanner.model.SortResponse
 import retrofit2.http.GET
@@ -20,7 +21,7 @@ interface ApiServices {
     suspend fun getBoxItems(@Query("boxNumber") boxNumber: String): Response<BoxItemsResponse>
 
     @GET("item")
-    suspend fun getItemBySKU(@Query("sku") sku: String): Response<ItemResponse>
+    suspend fun getItemBySKU(@Query("sku") sku: String): Response<SkuItemsResponse>
 
     @POST("item/sort")
     suspend fun sortItems(@Body sortRequest: SortRequest): Response<SortResponse>
