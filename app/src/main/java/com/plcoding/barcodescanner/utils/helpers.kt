@@ -1,8 +1,8 @@
 package com.plcoding.barcodescanner.utils
 
-import android.R
+import android.content.Context
+import android.content.SharedPreferences
 import com.google.gson.Gson
-import com.google.gson.JsonObject
 import com.plcoding.barcodescanner.model.ErrorResponse
 import org.json.JSONObject
 import kotlin.math.min
@@ -69,11 +69,31 @@ fun getErrorFromErrorBody(errorBody: String): String {
     try {
         val jsonObject = JSONObject(errorBody)
         val errorResponse = Gson().fromJson(jsonObject.toString(), ErrorResponse::class.java)
-        return errorResponse.error ?:""
+        return errorResponse.error ?: ""
     } catch (e: Exception) {
         return "Error"
 
+    }
+}
 
+
+fun saveUsername(context: Context, username: String) {
+    val sharedPref: SharedPreferences =
+        context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
+    val editor = sharedPref.edit()
+    editor.apply {
+        putString("username", username)
+        apply()
     }
 
+
 }
+fun getUsername(context: Context): String? {
+    val sharedPref: SharedPreferences =
+        context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
+
+    return sharedPref.getString("username", null)
+
+}
+
+

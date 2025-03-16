@@ -4,7 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import com.plcoding.barcodescanner.utils.Constants.BOX_SKUS_LIST
 
 class BarcodeScanningViewModel : ViewModel() {
 
@@ -18,16 +17,13 @@ class BarcodeScanningViewModel : ViewModel() {
 
     fun updateScannedCode(code: String) {
         scannedCode = code
-        checkIfTextIsValid()
+//        checkIfTextIsValid()
     }
 
     fun updateScannedText(text: String) {
         scannedText = text
-        checkIfTextIsValid()
+//        checkIfTextIsValid()
     }
 
-    private fun checkIfTextIsValid() {
-        // Check if either scannedText or scannedCode is in the BOX_SKUS_LIST
-        isButtonEnabled = BOX_SKUS_LIST.contains(scannedText) || BOX_SKUS_LIST.contains(scannedCode)
-    }
+
 }

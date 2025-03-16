@@ -7,12 +7,13 @@ android {
     namespace = "com.plcoding.barcodescanner"
     compileSdk = 35
 
+    val versionCodeNumber = "1.0.4"
     defaultConfig {
         applicationId = "com.plcoding.barcodescanner"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = versionCodeNumber
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -29,6 +30,7 @@ android {
             )
         }
         register("barcode"){
+            resValue("string","version",versionCodeNumber)
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -37,6 +39,9 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         debug {
+
+            resValue("string","version",versionCodeNumber)
+
             isMinifyEnabled = false
             isDebuggable = true
             proguardFiles(

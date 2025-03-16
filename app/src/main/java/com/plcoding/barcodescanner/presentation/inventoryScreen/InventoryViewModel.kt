@@ -1,23 +1,36 @@
 package com.plcoding.barcodescanner.presentation.inventoryScreen
 
+import android.app.Application
+import android.content.res.AssetManager
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.plcoding.barcodescanner.model.MarkBoxAsDoneRequest
+import com.plcoding.barcodescanner.model.CategoriesResponseItem
 import com.plcoding.barcodescanner.model.SortRequest
 import com.plcoding.barcodescanner.remote.Repository
 import com.plcoding.barcodescanner.utils.Constants.BOX_NUMBER
-import com.plcoding.barcodescanner.utils.Constants.BOX_SKUS_LIST
+import com.plcoding.barcodescanner.utils.Constants.USER_NAME
 import com.plcoding.barcodescanner.utils.Resource
 import com.plcoding.barcodescanner.utils.findClosestStrings
+//import com.plcoding.barcodescanner.utils.searchTopSkus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
-class InventoryViewModel() : ViewModel() {
+class InventoryViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val assetManager: AssetManager = application.assets
+
+    private val _dataList = MutableStateFlow<List<String>>(emptyList())
+    val dataList = _dataList.asStateFlow()
 
 
     // Old Box Number
@@ -42,6 +55,9 @@ class InventoryViewModel() : ViewModel() {
     var categoryList by mutableStateOf<List<String>>(emptyList())
         private set
 
+    var categoryWithBoxList by mutableStateOf<List<CategoriesResponseItem>>(emptyList())
+        private set
+
     // New Box Number
     var newBoxNumber by mutableStateOf("1")
         private set
@@ -58,7 +74,6 @@ class InventoryViewModel() : ViewModel() {
 
     var savedBarcode: String = ""
 
-    var oldBoxJob: Job? = null
 
     var showError by mutableStateOf(false)
 
@@ -69,9 +84,7 @@ class InventoryViewModel() : ViewModel() {
 
     var showDialog by mutableStateOf(false)
 
-    var quantityOne by mutableStateOf(0)
-
-    var quantityTwo by mutableStateOf(0)
+    var skuJob: Job? = null
 
     var itemStatus by mutableStateOf<String?>(null)
 
@@ -97,26 +110,42 @@ class InventoryViewModel() : ViewModel() {
         }
     }
 
-    // Update functions for each state
+
     fun updateOldBoxNumber(value: String) {
+        BOX_NUMBER = value
         oldBoxNumber = value
-        oldBoxJob?.cancel()
-        oldBoxJob = null
-        oldBoxJob = viewModelScope.launch {
-            delay(1000)
-
-            getBoxItemsByNumber(value)
-        }
-    }
-
-    fun updateItemDamaged(value: Boolean) {
-        itemDamaged = value
     }
 
     init {
-//        getBoxItemsByNumber(BOX_NUMBER)
         oldBoxNumber = BOX_NUMBER
         getAllCategories()
+    }
+
+    fun loadCsv(itemSKU: String, barcode: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            isLoading = true  // Start loading
+
+            val items = mutableListOf<String>()
+
+            try {
+                val inputStream = assetManager.open("sku.csv")
+                val reader = BufferedReader(InputStreamReader(inputStream))
+
+                reader.forEachLine { line ->
+                    if (line.isNotBlank()) {
+                        items.add(line.trim()) // Trim spaces
+                    }
+                }
+                reader.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            _dataList.value = items
+
+            Log.e("dataList",_dataList.value.toString())
+            updateItemSKUAndBarcode(itemSKU, barcode)
+        }
     }
 
     private fun getAllCategories() {
@@ -125,6 +154,10 @@ class InventoryViewModel() : ViewModel() {
                 when (it) {
                     is Resource.Success -> {
                         categoryList = it.data.map { it.name }
+                        categoryWithBoxList = it.data
+
+                        newBoxNumber =
+                            categoryWithBoxList.find { it.name == categoryName }?.proposed_box ?: ""
                     }
 
                     is Resource.Error -> {
@@ -143,22 +176,33 @@ class InventoryViewModel() : ViewModel() {
     }
 
     fun updateSKU(itemSKU: String) {
+        skuJob?.cancel()
+        skuJob = null
+
+
         skuValue = itemSKU
         Log.e("ayham", itemSKU)
         Log.e("ayham", skuValue)
-        if (!BOX_SKUS_LIST.contains(itemSKU)) {
-            skuList = findClosestStrings(itemSKU, BOX_SKUS_LIST, 3)
+
+        viewModelScope.launch {
+            skuList = findClosestStrings(itemSKU, _dataList.value, 4)
         }
-        onSkuChoose(itemSKU)
+
+        skuJob = viewModelScope.launch {
+            delay(2000)
+            onSkuChoose(itemSKU)
+        }
     }
 
 
     fun updateItemSKUAndBarcode(itemSKU: String, barcode: String? = null) {
 
+
         skuValue = itemSKU
-        if (!BOX_SKUS_LIST.contains(itemSKU)) {
-            skuList = findClosestStrings(itemSKU, BOX_SKUS_LIST, 3)
+        viewModelScope.launch {
+            skuList = findClosestStrings(itemSKU, _dataList.value, 4)
         }
+
 
 
 
@@ -171,57 +215,32 @@ class InventoryViewModel() : ViewModel() {
     }
 
 
-    private fun getBoxItemsByNumber(boxNumber: String) {
+    fun onSkuChoose(sku: String) {
         viewModelScope.launch {
-            Repository.getBoxItems(boxNumber).collect { result ->
+            Repository.getItem(sku).collect { result ->
                 when (result) {
                     is Resource.Success -> {
-
-                        BOX_SKUS_LIST = result.data
-                        BOX_NUMBER = boxNumber
-
+                        isSkuFound = false
+                        itemName = result.data[0].name
+                        categoryName = result.data[0].category
+                        isSkuFound = true
+                        newBoxNumber =
+                            categoryWithBoxList.find { it.name == categoryName }?.proposed_box ?: ""
+                        itemImage = result.data[0].image
+                        size = result.data.map { it.size ?: "" }
                     }
 
-
                     is Resource.Error -> {
-                        errorMessage = result.errorMessage
+                        errorMessage = (result.errorMessage)
                         showErrorMessage()
                     }
 
                     is Resource.Loading -> {
-                        isLoading = result.isLoading
+                        isLoading = (result.isLoading)
                     }
                 }
             }
         }
-    }
-
-
-    fun onSkuChoose(sku: String) {
-            viewModelScope.launch {
-                Repository.getItem(sku).collect { result ->
-                    when (result) {
-                        is Resource.Success -> {
-                            isSkuFound = false
-                            itemName = result.data[0].name
-                            categoryName = result.data[0].category
-                            isSkuFound = true
-                            newBoxNumber = result.data[0].box ?: ""
-                            itemImage = result.data[0].image
-                            size = result.data.map { it.size ?: "" }
-                        }
-
-                        is Resource.Error -> {
-                            errorMessage = (result.errorMessage)
-                            showErrorMessage()
-                        }
-
-                        is Resource.Loading -> {
-                            isLoading = (result.isLoading)
-                        }
-                    }
-                }
-            }
 
     }
 
@@ -236,6 +255,8 @@ class InventoryViewModel() : ViewModel() {
 
     fun selectCategory(category: String) {
         categoryName = category
+        newBoxNumber =
+            categoryWithBoxList.find { it.name == category }?.proposed_box ?: newBoxNumber
     }
 
     fun updateNewBoxNumber(value: String) {
@@ -243,54 +264,69 @@ class InventoryViewModel() : ViewModel() {
     }
 
     fun onButtonClick() {
-        if (validateData()) {
 
-            val status = if (!BOX_SKUS_LIST.contains(skuValue)) {
-                2
-            } else {
-                when (itemStatus) {
-                    "damaged" -> 1
-                    "gift" -> 4
-                    "donation" -> 3
-                    else -> 0
-                }
-            }
+        try {
+            if (validateData()) {
 
-            viewModelScope.launch {
-                Repository.sortItem(
-                    SortRequest(
-                        itemBarcode = savedBarcode,
-                        itemCategory = categoryName,
-                        itemSKU = skuValue,
-                        sortedBox = newBoxNumber,
-                        status = status
-                    )
-                ).collect { result ->
-                    when (result) {
-                        is Resource.Success -> {
-                            errorMessage = result.data.message
-                            showErrorMessage()
-                            clearData()
-                        }
-
-                        is Resource.Error -> {
-                            errorMessage = result.errorMessage
-                            showErrorMessage()
-
-                        }
-
-                        is Resource.Loading -> {
-                            isLoading = result.isLoading
+                val status =
+                    if (itemName.isNullOrEmpty()) {
+                        2
+                    } else {
+                        when (itemStatus) {
+                            "damaged" -> 1
+                            "gift" -> 4
+                            "donation" -> 3
+                            else -> 0
                         }
                     }
 
+                viewModelScope.launch {
+                    Repository.sortItem(
+                        SortRequest(
+                            itemBarcode = savedBarcode,
+                            itemCategory = categoryName,
+                            itemSKU = skuValue,
+                            sortedBox = newBoxNumber,
+                            status = status,
+                            size = selectedSize,
+                            name = USER_NAME!!
+                        )
+                    ).collect { result ->
+                        when (result) {
+                            is Resource.Success -> {
+                                errorMessage = result.data.message
+                                showErrorMessage()
+                                clearData()
+                            }
+
+                            is Resource.Error -> {
+                                errorMessage = result.errorMessage
+                                showErrorMessage()
+
+                            }
+
+                            is Resource.Loading -> {
+                                isLoading = result.isLoading
+                            }
+                        }
+
+                    }
                 }
             }
+        } catch (e: Exception) {
+
         }
+
     }
 
     private fun validateData(): Boolean {
+        Log.e("username", USER_NAME.toString())
 
+        if (USER_NAME.isNullOrEmpty()) {
+            errorMessage = "Please login first"
+            showErrorMessage()
+            return false
+        }
         if (oldBoxNumber.isEmpty()) {
             errorMessage = "Please enter a box number"
             showErrorMessage()
@@ -312,12 +348,14 @@ class InventoryViewModel() : ViewModel() {
             return false
         }
 
-        if (savedBarcode.isEmpty()) {
-            errorMessage = "barcode is Empty"
-            showErrorMessage()
-            return false
-
+        if (size.isNotEmpty()) {
+            if (selectedSize == null) {
+                errorMessage = "Please select a size"
+                showErrorMessage()
+                return false
+            }
         }
+
         return true
     }
 
@@ -344,38 +382,14 @@ class InventoryViewModel() : ViewModel() {
     }
 
     fun markBoxAsDone(confirmed: Boolean = true) {
-        viewModelScope.launch {
-            Repository.markBoxAsDone(
-                MarkBoxAsDoneRequest(
-                    oldBoxNumber,
-                    confirmed = confirmed
-                )
-            ).collect { result ->
-                when (result) {
-                    is Resource.Success -> {
-                        errorMessage = result.data.message ?: ""
-                        showErrorMessage()
-                        oldBoxNumber = ""
-                        clearData()
-                        showDialog = !confirmed
-                        quantityOne = result.data.summary?.totalScanned ?: 0
-                        quantityTwo = result.data.summary?.totalExpected ?: 0
-                    }
-
-                    is Resource.Error -> {
-                        errorMessage = result.errorMessage
-                        showErrorMessage()
-//                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
-
-
-                    }
-
-                    is Resource.Loading -> {
-                        isLoading = result.isLoading
-                    }
-                }
-            }
+        if (confirmed) {
+            errorMessage = "Box marked as done"
+            showErrorMessage()
+            oldBoxNumber = ""
+            clearData()
         }
-
+        showDialog = !confirmed
     }
+
+
 }

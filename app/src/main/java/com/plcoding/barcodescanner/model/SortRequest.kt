@@ -5,5 +5,7 @@ data class SortRequest(
     val itemCategory: String,
     val itemSKU: String,
     val sortedBox: String,
-    val status : Int
+    val status : Int,
+    val size : String? = null,
+    val name : String
 )
