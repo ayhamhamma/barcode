@@ -30,6 +30,8 @@ interface ApiServices {
     suspend fun markBoxAsDone(@Body body : MarkBoxAsDoneRequest): Response<ErrorResponse>
 
     @GET("categories")
-    suspend fun getAllCategories(): Response<CategoriesResponse>
+    suspend fun getAllCategories(
+        @Query("teamNumber") teamNumber:String
+    ): Response<CategoriesResponse>
 
 }

@@ -5,11 +5,14 @@ import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -17,15 +20,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.google.common.collect.Queues
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
@@ -47,7 +56,10 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.plcoding.barcodescanner.utils.Constants.INVENTORY_SCREEN
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
+
 
 @Composable
 fun BarcodeScannerDemo(
@@ -57,11 +69,18 @@ fun BarcodeScannerDemo(
     onScannedCodeUpdate: (String) -> Unit,
     onScannedTextUpdate: (String) -> Unit
 ) {
-
-    var removeRestriction by remember { mutableStateOf(false) }
-    val text = if (removeRestriction) "Return SKU Restrictions" else "Remove SKU Restrictions"
+    var scanMode by remember { mutableStateOf(false) }
+    val buttonText = if (scanMode) "Return to Live Scanning" else "Scan for SKU"
     val length = "sh2305263686018639".length
-
+    
+    // State for the dialog
+    var showSkuDialog by remember { mutableStateOf(false) }
+    val detectedSkus = remember { mutableStateListOf<String>() }
+    
+    // State for image capture
+    val context = LocalContext.current
+    val imageCapture = remember { ImageCapture.Builder().build() }
+    
     Box {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -74,22 +93,19 @@ fun BarcodeScannerDemo(
                 },
                 onTextFound = { it ->
                     // Save the text value
-                    if (!removeRestriction) {
+                    if (!scanMode) {
                         val startsWithS = it.startsWith("s", ignoreCase = true)
                         val matchesLength = (it.length == length)
                         val lastCharIsNumbers = it.takeLast(length - 2).all { it.isDigit() }
                         val firstTwoCharactersIsLetters = it.take(2).all { it.isLetter() }
 
                         if (startsWithS && matchesLength && lastCharIsNumbers && firstTwoCharactersIsLetters)
-                            onScannedTextUpdate(it.toLowerCase())
-                    } else {
-                        onScannedTextUpdate(it.toLowerCase())
+                            onScannedTextUpdate(it.lowercase())
                     }
                 },
-                removeRestriction
+                scanMode = scanMode,
+                imageCapture = imageCapture
             )
-
-
 
             LaunchedEffect(key1 = scannedCode) {
                 Log.e("AyhamCode", scannedCode)
@@ -101,20 +117,17 @@ fun BarcodeScannerDemo(
             Text("Scanned Code: $scannedCode", fontSize = 20.sp)
         }
 
-//        if(scannedText.isNotEmpty())
         Box(
             Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
         ) {
-
             Column(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topEnd = 16.dp, topStart = 16.dp))
                     .background(Color.White)
             ) {
-
                 Spacer(Modifier.size(20.dp))
                 Text(
                     "Scanned SKU:",
@@ -146,12 +159,20 @@ fun BarcodeScannerDemo(
 
                 Spacer(Modifier.size(20.dp))
 
-
-
                 Button(
                     onClick = {
                         navController.popBackStack(INVENTORY_SCREEN, inclusive = true)
-                        navController.navigate(INVENTORY_SCREEN + "/${scannedCode}" + "/${scannedText}")
+
+                        val qrCode = URLEncoder.encode(
+                            scannedCode,
+                            StandardCharsets.UTF_8.toString()
+                        )
+                        val sku = URLEncoder.encode(
+                            scannedText,
+                            StandardCharsets.UTF_8.toString()
+                        )
+
+                        navController.navigate(INVENTORY_SCREEN + "/${qrCode}" + "/${sku}")
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -164,31 +185,152 @@ fun BarcodeScannerDemo(
                 }
 
                 Spacer(Modifier.size(80.dp))
-
             }
-            // Close button
+            
+            // Scan for SKU button
             TextButton(
                 onClick = {
-                    removeRestriction = !removeRestriction
+                    if (scanMode) {
+                        // Return to live scanning mode
+                        scanMode = false
+                    } else {
+                        // Take a photo and process it
+                        takePhoto(
+                            context = context,
+                            imageCapture = imageCapture,
+                            onPhotoTaken = { imageProxy ->
+                                // Process the image to extract all text
+                                processPhotoForText(
+                                    imageProxy = imageProxy,
+                                    onTextDetected = { textList ->
+                                        detectedSkus.clear()
+                                        detectedSkus.addAll(textList)
+                                        showSkuDialog = true
+                                    }
+                                )
+                            }
+                        )
+                    }
                 },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
                     .background(Color.Black.copy(alpha = 0.3f), CircleShape)
             ) {
-                Text(text, color = Color.Black)
+                Text(buttonText, color = Color.Black)
             }
         }
-
+        
+        // SKU Selection Dialog
+        if (showSkuDialog) {
+            SkuSelectionDialog(
+                skuList = detectedSkus,
+                onDismiss = { showSkuDialog = false },
+                onSkuSelected = { selectedSku ->
+                    onScannedTextUpdate(selectedSku)
+                    showSkuDialog = false
+                }
+            )
+        }
     }
+}
 
+@Composable
+fun SkuSelectionDialog(
+    skuList: List<String>,
+    onDismiss: () -> Unit,
+    onSkuSelected: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Select SKU") },
+        text = {
+            LazyColumn {
+                items(skuList) { sku ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { onSkuSelected(sku) }
+                    ) {
+                        Text(
+                            text = sku,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+private fun takePhoto(
+    context: android.content.Context,
+    imageCapture: ImageCapture,
+    onPhotoTaken: (ImageProxy) -> Unit
+) {
+    val executor = ContextCompat.getMainExecutor(context)
+    
+    imageCapture.takePicture(
+        executor,
+        object : ImageCapture.OnImageCapturedCallback() {
+            @OptIn(ExperimentalGetImage::class)
+            override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                onPhotoTaken(imageProxy)
+            }
+            
+            override fun onError(exception: ImageCaptureException) {
+                Log.e("CameraCapture", "Photo capture failed: ${exception.message}", exception)
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalGetImage::class)
+private fun processPhotoForText(
+    imageProxy: ImageProxy,
+    onTextDetected: (List<String>) -> Unit
+) {
+    val mediaImage = imageProxy.image
+    if (mediaImage != null) {
+        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        
+        val detectedTexts = mutableListOf<String>()
+        
+        textRecognizer.process(image)
+            .addOnSuccessListener { visionText ->
+                for (block in visionText.textBlocks) {
+                    for (line in block.lines) {
+                        detectedTexts.add(line.text)
+                    }
+                }
+                onTextDetected(detectedTexts)
+            }
+            .addOnFailureListener { e ->
+                Log.e("TextRecognition", "Text recognition failed", e)
+                onTextDetected(emptyList())
+            }
+            .addOnCompleteListener {
+                imageProxy.close()
+            }
+    } else {
+        imageProxy.close()
+        onTextDetected(emptyList())
+    }
 }
 
 @Composable
 fun BarcodeScannerScreen(
     onBarcodeScanned: (String) -> Unit,
     onTextFound: (String) -> Unit,
-    removeRestriction: Boolean
+    scanMode: Boolean,
+    imageCapture: ImageCapture
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -215,7 +357,7 @@ fun BarcodeScannerScreen(
                             imageProxy,
                             onBarcodeScanned,
                             onTextFound,
-                            removeRestriction
+                            scanMode
                         )
                     }
                 }
@@ -227,7 +369,8 @@ fun BarcodeScannerScreen(
                     lifecycleOwner,
                     cameraSelector,
                     preview,
-                    imageAnalyzer
+                    imageAnalyzer,
+                    imageCapture
                 )
             } catch (exc: Exception) {
                 Log.e("BarcodeScanner", "Use case binding failed", exc)
@@ -236,7 +379,6 @@ fun BarcodeScannerScreen(
     }
 }
 
-
 @OptIn(ExperimentalGetImage::class)
 private fun processImageProxy(
     barcodeScanner: BarcodeScanner,
@@ -244,7 +386,7 @@ private fun processImageProxy(
     imageProxy: ImageProxy,
     onBarcodeScanned: (String) -> Unit,
     onTextFound: (String) -> Unit,
-    removeRestriction: Boolean
+    scanMode: Boolean
 ) {
     // Convert ImageProxy to InputImage
     val mediaImage = imageProxy.image
@@ -262,26 +404,30 @@ private fun processImageProxy(
                 Log.e("BarcodeScanner", "Barcode processing failed", e)
             }
 
-        // Process text recognition
-        textRecognizer.process(image)
-            .addOnSuccessListener { visionText ->
-                for (block in visionText.textBlocks) {
-                    for (line in block.lines) {
-                        line.text?.let { text ->
-                            if (removeRestriction || text.startsWith("S", ignoreCase = true)) {
-                                onTextFound(text)
-                                return@addOnSuccessListener // Exit after finding the first match
+        // Process text recognition for live scanning
+        if (!scanMode) {
+            textRecognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    for (block in visionText.textBlocks) {
+                        for (line in block.lines) {
+                            line.text?.let { text ->
+                                if (text.startsWith("S", ignoreCase = true)) {
+                                    onTextFound(text)
+                                    return@addOnSuccessListener // Exit after finding the first match
+                                }
                             }
                         }
                     }
                 }
-            }
-            .addOnFailureListener { e ->
-                Log.e("BarcodeScanner", "Text recognition failed", e)
-            }
-            .addOnCompleteListener {
-                imageProxy.close()
-            }
+                .addOnFailureListener { e ->
+                    Log.e("BarcodeScanner", "Text recognition failed", e)
+                }
+                .addOnCompleteListener {
+                    imageProxy.close()
+                }
+        } else {
+            imageProxy.close()
+        }
     }
 }
 

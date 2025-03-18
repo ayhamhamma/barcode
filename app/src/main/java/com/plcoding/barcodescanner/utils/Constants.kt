@@ -10,6 +10,6 @@ object Constants {
     const val LOGIN_SCREEN = "login"
 
     var USER_NAME : String? = null
-    val VERSION = "1.0.4"
-    const val STATIC_PASSWORD = "tribe.4life"
+    val VERSION = "1.0.9"
+    const val STATIC_PASSWORD = "123123123"
 }

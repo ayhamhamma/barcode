@@ -17,6 +17,7 @@
         android:roundIcon="@drawable/img"
         android:supportsRtl="true"
         android:theme="@style/Theme.BarcodeScanner"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31"
 
         >

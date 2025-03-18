@@ -21,10 +21,7 @@ fun findClosestStrings(target: String, strings: List<String>, limit: Int): List<
 
     // Sort by distance (ascending) and take the specified number of results
     // Extract just the strings from the pairs
-    return distancePairs
-        .sortedBy { it.second }
-        .take(minOf(limit, strings.size))
-        .map { it.first }
+    return distancePairs.sortedBy { it.second }.take(minOf(limit, strings.size)).map { it.first }
 }
 
 /**
@@ -56,8 +53,7 @@ fun levenshteinDistance(s1: String, s2: String): Int {
                 min(
                     dp[i - 1][j] + 1,      // deletion
                     dp[i][j - 1] + 1       // insertion
-                ),
-                dp[i - 1][j - 1] + cost    // substitution
+                ), dp[i - 1][j - 1] + cost    // substitution
             )
         }
     }
@@ -82,18 +78,45 @@ fun saveUsername(context: Context, username: String) {
         context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
     val editor = sharedPref.edit()
     editor.apply {
-        putString("username", username)
+        putString("username1", username)
         apply()
     }
 
 
 }
+
 fun getUsername(context: Context): String? {
     val sharedPref: SharedPreferences =
         context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
 
-    return sharedPref.getString("username", null)
+    return sharedPref.getString("username1", null)
 
 }
+fun saveTeamNumberString(context: Context, teamNumberString: String) {
+    val sharedPref: SharedPreferences =
+        context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
+    val editor = sharedPref.edit()
+    editor.apply {
+        putString("team_number_string", teamNumberString)
+        apply()
+    }
+
+
+}
+
+fun getTeamNumberString(context: Context): String? {
+    val sharedPref: SharedPreferences =
+        context.getSharedPreferences("my_prefrences_2", Context.MODE_PRIVATE)
+
+    return sharedPref.getString("team_number_string", null)
+
+}
+
+
+
+
+
+
+
 
 

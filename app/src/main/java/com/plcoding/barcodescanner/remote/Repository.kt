@@ -3,7 +3,6 @@ package com.plcoding.barcodescanner.remote
 import com.plcoding.barcodescanner.model.BoxItemsResponse
 import com.plcoding.barcodescanner.model.CategoriesResponse
 import com.plcoding.barcodescanner.model.ErrorResponse
-import com.plcoding.barcodescanner.model.ItemResponse
 import com.plcoding.barcodescanner.model.MarkBoxAsDoneRequest
 import com.plcoding.barcodescanner.model.SkuItemsResponse
 import com.plcoding.barcodescanner.model.SortRequest
@@ -23,9 +22,9 @@ object Repository {
 
             val response = RetrofitInstance.api.getBoxItems(boxNumber)
 
-            if(response.isSuccessful) {
+            if (response.isSuccessful) {
                 emit(Resource.Success(response.body()!!))
-            }else {
+            } else {
                 val errorBody = response.errorBody()?.string() ?: """
                     {
                         "message": "Unknown error"
@@ -45,94 +44,115 @@ object Repository {
         sku: String
     ): Flow<Resource<SkuItemsResponse>> {
         return flow {
-            emit(Resource.Loading(true))
+            try {
+                emit(Resource.Loading(true))
 
-            val response = RetrofitInstance.api.getItemBySKU(sku)
+                val response = RetrofitInstance.api.getItemBySKU(sku)
 
-            if(response.isSuccessful) {
-                emit(Resource.Success(response.body()!!))
-            } else {
-                val errorBody = response.errorBody()?.string() ?: """
+                if (response.isSuccessful) {
+                    emit(Resource.Success(response.body()!!))
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: """
                     {
                         "message": "Unknown error"
                     }
                 """.trimIndent()
 
 
-                emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                    emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                }
+
+                emit(Resource.Loading(false))
+            } catch (e: Exception) {
+                emit(Resource.Error("Bad Connection"))
             }
 
-            emit(Resource.Loading(false))
 
         }
     }
 
     fun sortItem(
         sortRequest: SortRequest
-    ): Flow<Resource<SortResponse>>{
+    ): Flow<Resource<SortResponse>> {
         return flow {
-            emit(Resource.Loading(true))
+            try {
+                emit(Resource.Loading(true))
 
-            val response = RetrofitInstance.api.sortItems(sortRequest)
+                val response = RetrofitInstance.api.sortItems(sortRequest)
 
-            if(response.isSuccessful) {
-                emit(Resource.Success(response.body()!!))
-            } else {
-                val errorBody = response.errorBody()?.string() ?: """
-                    {
-                        "message": "Unknown error"
-                    }
-                """.trimIndent()
-
-
-
-                emit(Resource.Error(getErrorFromErrorBody(errorBody)))
-            }
-
-            emit(Resource.Loading(false))
-
-        }
-    }
-
-    fun markBoxAsDone(body : MarkBoxAsDoneRequest): Flow<Resource<ErrorResponse>>{
-        return flow {
-            emit(Resource.Loading(true))
-
-            val response = RetrofitInstance.api.markBoxAsDone(body)
-
-            if(response.isSuccessful) {
-                emit(Resource.Success(response.body()!!))
+                if (response.isSuccessful) {
+                    emit(Resource.Success(response.body()!!))
                 } else {
-                val errorBody = response.errorBody()?.string() ?: """
+                    val errorBody = response.errorBody()?.string() ?: """
                     {
                         "message": "Unknown error"
                     }
                 """.trimIndent()
 
 
-                emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+
+                    emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                }
+
+                emit(Resource.Loading(false))
+            } catch (e: Exception) {
+                emit(Resource.Error("Bad Connection"))
             }
 
-            emit(Resource.Loading(false))
+
         }
     }
 
-    fun getAllCategories(): Flow<Resource<CategoriesResponse>> {
+    fun markBoxAsDone(body: MarkBoxAsDoneRequest): Flow<Resource<ErrorResponse>> {
         return flow {
-            emit(Resource.Loading(true))
-            val response = RetrofitInstance.api.getAllCategories()
-            if(response.isSuccessful) {
-                emit(Resource.Success(response.body()!!))
+            try {
+
+                emit(Resource.Loading(true))
+
+                val response = RetrofitInstance.api.markBoxAsDone(body)
+
+                if (response.isSuccessful) {
+                    emit(Resource.Success(response.body()!!))
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: """
+                    {
+                        "message": "Unknown error"
+                    }
+                """.trimIndent()
+
+
+                    emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                }
+
+                emit(Resource.Loading(false))
+            } catch (e: Exception) {
+                emit(Resource.Error("Bad Connection"))
             }
-            else {
-                val errorBody = response.errorBody()?.string() ?: """
+        }
+    }
+
+    fun getAllCategories(teamNumber: String): Flow<Resource<CategoriesResponse>> {
+        return flow {
+            try {
+
+
+                emit(Resource.Loading(true))
+                val response = RetrofitInstance.api.getAllCategories(teamNumber)
+                if (response.isSuccessful) {
+                    emit(Resource.Success(response.body()!!))
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: """
                     {
                         "message": "Unknown error"
                     }
                     """.trimIndent()
-                emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                    emit(Resource.Error(getErrorFromErrorBody(errorBody)))
+                }
+                emit(Resource.Loading(false))
+
+            } catch (e: Exception) {
+                emit(Resource.Error("Bad Connection"))
             }
-            emit(Resource.Loading(false))
         }
     }
 }

@@ -1,18 +1,22 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
+    id("com.google.gms.google-services")
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.google.firebase.crashlytics)
 }
 
 android {
     namespace = "com.plcoding.barcodescanner"
     compileSdk = 35
 
-    val versionCodeNumber = "1.0.4"
+    val versionCodeNumber = "1.0.9"
     defaultConfig {
         applicationId = "com.plcoding.barcodescanner"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
+        versionCode = 9
+
         versionName = versionCodeNumber
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -85,6 +89,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.play.services.mlkit.text.recognition.common)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.firebase.crashlytics)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -94,25 +99,31 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation(libs.barcode.scanning)
 
-    val camerax_version = "1.4.0" // Use the latest stable version
+    // CameraX
+    val camerax_version = "1.4.0" // Latest stable version
     implementation("androidx.camera:camera-core:$camerax_version")
     implementation("androidx.camera:camera-camera2:$camerax_version")
     implementation("androidx.camera:camera-lifecycle:$camerax_version")
     implementation("androidx.camera:camera-view:$camerax_version")
-    implementation ("com.google.mlkit:text-recognition:16.0.0")
-    // Other dependencies
 
-    // Rerofit // okHttp // Interceptor
-    implementation("com.squareup.retrofit2:retrofit:2.9.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+// ML Kit
+    implementation("com.google.mlkit:text-recognition:16.0.0") // Latest stable version
+
+// Retrofit and OkHttp
+    implementation("com.squareup.retrofit2:retrofit:2.11.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
 
-    // glide compose
-    implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
+// Glide Compose
+    implementation("com.github.bumptech.glide:compose:1.0.0-beta01") // Latest stable version
 
-    // coil
-    implementation("io.coil-kt:coil-compose:2.6.0")
+// Coil
+    implementation("io.coil-kt:coil-compose:2.7.0") // Latest stable version
+
+    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
+    implementation("com.google.firebase:firebase-analytics")
+
 
 
     implementation(libs.ui)

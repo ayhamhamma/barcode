@@ -7,5 +7,8 @@ data class SortRequest(
     val sortedBox: String,
     val status : Int,
     val size : String? = null,
-    val name : String
+    val name : String,
+    val teamNumber: String,
+    val oldBoxNumber: String,
+    val appVersion : String
 )

@@ -1,6 +1,5 @@
 package com.plcoding.barcodescanner.presentation.inventoryScreen
 
-import android.os.Build
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -43,10 +42,10 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -79,7 +77,7 @@ fun InventoryTransferScreen(
     navController: NavController? = null,
     oldBoxNumber: String = "",
     skuValue: String = "",
-    itemName: String = "",
+    itemName: String? = "",
     categoryName: String = "",
     newBoxNumber: String = "",
     isSkuFound: Boolean = false,
@@ -126,12 +124,14 @@ fun InventoryTransferScreen(
     },
     sizeList: List<String> = listOf(),
     onSizeSelected: (String?) -> Unit = {},
-    selectedSize : String? = null
+    selectedSize: String? = null,
+    price: String? = null
 ) {
 
     val (context, focusManager) = Pair(LocalContext.current, LocalFocusManager.current)
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val priceNew = price?.toDoubleOrNull() ?: 0.0
 
     LaunchedEffect(showError) {
         Log.e("ayham", "error: $error")
@@ -145,18 +145,23 @@ fun InventoryTransferScreen(
         }
     }
 
-    Scaffold(topBar = {
-        Column(Modifier.fillMaxWidth().height(80.dp), verticalArrangement = Arrangement.Center) {
-            Text(
-                text = "V" + VERSION,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,)
-        }
-    },
-        containerColor = Color.White
+    Scaffold(
+        topBar = {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .height(80.dp), verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "V" + VERSION,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                )
+            }
+        }, containerColor = Color.White
     ) {
-        Box (Modifier.padding(it)){
+        Box(Modifier.padding(it)) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -201,9 +206,7 @@ fun InventoryTransferScreen(
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
                         Text(
-                            text = "mark box as done",
-                            fontSize = 14.sp,
-                            color = Color.Black
+                            text = "mark box as done", fontSize = 14.sp, color = Color.Black
                         )
                     }
 
@@ -225,9 +228,7 @@ fun InventoryTransferScreen(
                         border = BorderStroke(1.dp, Color.Gray),
                     ) {
                         Text(
-                            text = "Scan SKU",
-                            color = Color.Black,
-                            fontSize = 16.sp
+                            text = "Scan SKU", color = Color.Black, fontSize = 16.sp
                         )
                     }
 
@@ -266,8 +267,7 @@ fun InventoryTransferScreen(
                                     value = skuValue,
                                     onValueChange = onSkuChange,
                                     textStyle = TextStyle(
-                                        color = Color.Black,
-                                        fontSize = 16.sp
+                                        color = Color.Black, fontSize = 16.sp
                                     ),
 
                                     )
@@ -344,13 +344,21 @@ fun InventoryTransferScreen(
                                 Spacer(modifier = Modifier.width(16.dp))
 
                                 Text(
-                                    text = itemName,
+                                    text = itemName ?: "",
                                     fontSize = 20.sp,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+
+                            Text(
+                                text = "Price: $priceNew$",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(100.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
 
                             // Category row
                             Row(
@@ -368,8 +376,7 @@ fun InventoryTransferScreen(
 
                                 // SKU Dropdown
                                 ExposedDropdownMenuBox(
-                                    modifier = Modifier
-                                        .fillMaxWidth(),
+                                    modifier = Modifier.fillMaxWidth(),
                                     expanded = isCategoriesExpanded,
                                     onExpandedChange = onCategoriesExpandChange
                                 ) {
@@ -384,8 +391,7 @@ fun InventoryTransferScreen(
                                             containerColor = Color.LightGray
                                         ),
                                         contentPadding = PaddingValues(
-                                            horizontal = 16.dp,
-                                            vertical = 0.dp
+                                            horizontal = 16.dp, vertical = 0.dp
                                         )
                                     ) {
                                         Row(
@@ -411,10 +417,12 @@ fun InventoryTransferScreen(
                                         onDismissRequest = { onCategoriesExpandChange(false) }) {
                                         if (categoriesList.isNotEmpty()) {
                                             categoriesList.sortedBy { it }.forEach {
-                                                DropdownMenuItem(text = { Text(text = it) }, onClick = {
-                                                    onCategorySelected(it)
-                                                    onCategoriesExpandChange(false)
-                                                })
+                                                DropdownMenuItem(
+                                                    text = { Text(text = it) },
+                                                    onClick = {
+                                                        onCategorySelected(it)
+                                                        onCategoriesExpandChange(false)
+                                                    })
                                             }
                                         } else {
                                             DropdownMenuItem(
@@ -439,15 +447,13 @@ fun InventoryTransferScreen(
                                 sizeList.forEach {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         RadioButton(
-                                            selected = selectedSize == it ,
-                                            onClick = {
+                                            selected = selectedSize == it, onClick = {
                                                 if (itemStatus == it) {
                                                     onSizeSelected(null)
                                                 } else {
                                                     onSizeSelected(it)
                                                 }
-                                            }
-                                        )
+                                            })
                                         Text(
                                             text = it,
                                             fontSize = 14.sp,
@@ -455,6 +461,7 @@ fun InventoryTransferScreen(
                                         )
 
                                     }
+                                    TextField(value = selectedSize ?: "", onValueChange = onSizeSelected)
                                 }
                             }
 
@@ -468,15 +475,13 @@ fun InventoryTransferScreen(
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     RadioButton(
-                                        selected = itemStatus == "damaged",
-                                        onClick = {
+                                        selected = itemStatus == "damaged", onClick = {
                                             if (itemStatus == "damaged") {
                                                 updateItemStatus(null)
                                             } else {
                                                 updateItemStatus("damaged")
                                             }
-                                        }
-                                    )
+                                        })
                                     Text(
                                         text = "Item Damaged",
                                         fontSize = 14.sp,
@@ -486,15 +491,13 @@ fun InventoryTransferScreen(
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     RadioButton(
-                                        selected = itemStatus == "gift",
-                                        onClick = {
+                                        selected = itemStatus == "gift", onClick = {
                                             if (itemStatus == "gift") {
                                                 updateItemStatus(null)
                                             } else {
                                                 updateItemStatus("gift")
                                             }
-                                        }
-                                    )
+                                        })
                                     Text(
                                         text = "gift",
                                         fontSize = 14.sp,
@@ -504,15 +507,13 @@ fun InventoryTransferScreen(
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     RadioButton(
-                                        selected = itemStatus == "donation",
-                                        onClick = {
+                                        selected = itemStatus == "donation", onClick = {
                                             if (itemStatus == "donation") {
                                                 updateItemStatus(null)
                                             } else {
                                                 updateItemStatus("donation")
                                             }
-                                        }
-                                    )
+                                        })
                                     Text(
                                         text = "donation",
                                         fontSize = 14.sp,
@@ -520,6 +521,8 @@ fun InventoryTransferScreen(
                                     )
 
                                 }
+
+
                             }
 
 
@@ -549,8 +552,7 @@ fun InventoryTransferScreen(
                                         value = newBoxNumber,
                                         onValueChange = onNewBoxNumberChange,
                                         textStyle = TextStyle(
-                                            fontSize = 16.sp,
-                                            textAlign = TextAlign.Center
+                                            fontSize = 16.sp, textAlign = TextAlign.Center
                                         ),
                                     )
                                 }
@@ -590,10 +592,8 @@ fun InventoryTransferScreen(
                 Dialog(
                     onDismissRequest = {
                         // nothing
-                    },
-                    properties = DialogProperties(
-                        dismissOnBackPress = false,
-                        dismissOnClickOutside = false
+                    }, properties = DialogProperties(
+                        dismissOnBackPress = false, dismissOnClickOutside = false
                     )
                 ) {
                     Box(
@@ -615,8 +615,7 @@ fun InventoryTransferScreen(
                 confirmText = "Mark as Done",
                 cancelText = "Cancel",
                 onConfirm = onMarkBoxAsDone,
-                onDismiss = { onShowDialogChange(false) }
-            )
+                onDismiss = { onShowDialogChange(false) })
         }
     }
 }
@@ -632,38 +631,30 @@ fun ConfirmationDialog(
     onDismiss: () -> Unit
 ) {
     if (showDialog) {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            title = {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onConfirm()
-                        onDismiss()
-                    }
-                ) {
-                    Text(confirmText)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = onDismiss
-                ) {
-                    Text(cancelText)
-                }
+        AlertDialog(onDismissRequest = onDismiss, title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }, text = {
+            Text(
+                text = message, style = MaterialTheme.typography.bodyMedium
+            )
+        }, confirmButton = {
+            Button(
+                onClick = {
+                    onConfirm()
+                    onDismiss()
+                }) {
+                Text(confirmText)
             }
-        )
+        }, dismissButton = {
+            TextButton(
+                onClick = onDismiss
+            ) {
+                Text(cancelText)
+            }
+        })
     }
 }

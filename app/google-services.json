@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "945279773187",
+    "project_id": "barcode-d434c",
+    "storage_bucket": "barcode-d434c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:945279773187:android:82911bfdcdc4fa6a613c36",
+        "android_client_info": {
+          "package_name": "com.plcoding.barcodescanner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxlwvYQSnx4mf_2LICOmeGkoc-E-Ovnok"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

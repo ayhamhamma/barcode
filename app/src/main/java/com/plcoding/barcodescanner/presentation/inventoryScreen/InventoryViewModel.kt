@@ -13,8 +13,10 @@ import com.plcoding.barcodescanner.model.SortRequest
 import com.plcoding.barcodescanner.remote.Repository
 import com.plcoding.barcodescanner.utils.Constants.BOX_NUMBER
 import com.plcoding.barcodescanner.utils.Constants.USER_NAME
+import com.plcoding.barcodescanner.utils.Constants.VERSION
 import com.plcoding.barcodescanner.utils.Resource
 import com.plcoding.barcodescanner.utils.findClosestStrings
+import com.plcoding.barcodescanner.utils.getTeamNumberString
 //import com.plcoding.barcodescanner.utils.searchTopSkus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -28,10 +30,10 @@ import java.io.InputStreamReader
 class InventoryViewModel(application: Application) : AndroidViewModel(application) {
 
     private val assetManager: AssetManager = application.assets
+    val context = application.applicationContext
 
     private val _dataList = MutableStateFlow<List<String>>(emptyList())
     val dataList = _dataList.asStateFlow()
-
 
     // Old Box Number
     var oldBoxNumber by mutableStateOf("")
@@ -46,7 +48,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         private set
 
     // Item Details
-    var itemName by mutableStateOf("")
+    var itemName by mutableStateOf<String?>("")
         private set
     var categoryName by mutableStateOf("")
         private set
@@ -93,6 +95,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     )
 
     var selectedSize by mutableStateOf<String?>(null)
+
+    var price by mutableStateOf<String?>(null)
 
     fun updateSelectedSize(value: String?) {
         selectedSize = value
@@ -143,35 +147,41 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
             _dataList.value = items
 
-            Log.e("dataList",_dataList.value.toString())
+            Log.e("dataList", _dataList.value.toString())
             updateItemSKUAndBarcode(itemSKU, barcode)
         }
     }
 
     private fun getAllCategories() {
         viewModelScope.launch {
-            Repository.getAllCategories().collect {
-                when (it) {
-                    is Resource.Success -> {
-                        categoryList = it.data.map { it.name }
-                        categoryWithBoxList = it.data
+            val teamNumber = getTeamNumberString(context)
+            if (teamNumber.isNullOrEmpty()) {
+                errorMessage = "team number is empty"
+                showErrorMessage()
+            } else
+                Repository.getAllCategories(teamNumber).collect {
+                    when (it) {
+                        is Resource.Success -> {
+                            categoryList = it.data.map { it.name }
+                            categoryWithBoxList = it.data
 
-                        newBoxNumber =
-                            categoryWithBoxList.find { it.name == categoryName }?.proposed_box ?: ""
-                    }
+                            newBoxNumber =
+                                categoryWithBoxList.find { it.name == categoryName }?.proposed_box
+                                    ?: ""
+                        }
 
-                    is Resource.Error -> {
-                        errorMessage = it.errorMessage
-                        showErrorMessage()
+                        is Resource.Error -> {
+                            errorMessage = it.errorMessage
+                            showErrorMessage()
 
-                    }
+                        }
 
-                    is Resource.Loading -> {
-                        isLoading = it.isLoading
+                        is Resource.Loading -> {
+                            isLoading = it.isLoading
 
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -204,8 +214,6 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
 
-
-
         if (barcode != null) {
             savedBarcode = barcode
         }
@@ -220,17 +228,44 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             Repository.getItem(sku).collect { result ->
                 when (result) {
                     is Resource.Success -> {
-                        isSkuFound = false
-                        itemName = result.data[0].name
-                        categoryName = result.data[0].category
-                        isSkuFound = true
-                        newBoxNumber =
-                            categoryWithBoxList.find { it.name == categoryName }?.proposed_box ?: ""
-                        itemImage = result.data[0].image
-                        size = result.data.map { it.size ?: "" }
+                        try {
+                            if (result.data.isNotEmpty()) {
+                                isSkuFound = true
+                                itemName = result.data[0].name ?: "No Name" // Add null check
+                                categoryName = result.data[0].category ?: "" // Add null check
+                                newBoxNumber = categoryWithBoxList.find { it.name == categoryName }?.proposed_box ?: ""
+                                itemImage = result.data[0].image ?: "" // Add null check
+                                size = result.data.map { it.size ?: "" }
+                                price = result.data[0].price?.toString() ?: "" // Add null check
+                            } else {
+                                isSkuFound = false
+                                errorMessage = "No item found for SKU: $sku"
+                                showErrorMessage()
+
+                                itemName = "" // Add null check
+                                categoryName =  "" // Add null check
+                                newBoxNumber =  ""
+                                itemImage = "" // Add null check
+                                size = listOf("")
+                                price = "" // Add null check
+                            }
+                            getAllCategories()
+                        } catch (e: Exception) {
+                            Log.e("ayham", "Error processing item data", e)
+                            isSkuFound = false
+                            errorMessage = "Error processing item: ${e.message}"
+                            showErrorMessage()
+                            itemName = "" // Add null check
+                            categoryName =  "" // Add null check
+                            newBoxNumber =  ""
+                            itemImage = "" // Add null check
+                            size = listOf("")
+                            price = "" // Add null check
+                        }
                     }
 
                     is Resource.Error -> {
+                        isSkuFound = false
                         errorMessage = (result.errorMessage)
                         showErrorMessage()
                     }
@@ -269,7 +304,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             if (validateData()) {
 
                 val status =
-                    if (itemName.isNullOrEmpty()) {
+                    if (!isSkuFound) {
                         2
                     } else {
                         when (itemStatus) {
@@ -289,7 +324,10 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                             sortedBox = newBoxNumber,
                             status = status,
                             size = selectedSize,
-                            name = USER_NAME!!
+                            name = USER_NAME!!,
+                            teamNumber = getTeamNumberString(context)!!,
+                            oldBoxNumber = oldBoxNumber,
+                            appVersion = VERSION
                         )
                     ).collect { result ->
                         when (result) {
@@ -356,6 +394,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             }
         }
 
+        if(getTeamNumberString(context).isNullOrEmpty()){
+            errorMessage = "team number is empty"
+            showErrorMessage()
+            return false
+        }
+
         return true
     }
 
@@ -378,6 +422,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         isCategoryDropdownExpanded = false
         categoryList = emptyList()
         newBoxNumber = ""
+        price = null
         isSkuFound = false
     }
 

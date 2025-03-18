@@ -132,7 +132,8 @@ class MainActivity : ComponentActivity() {
                             updateItemStatus = viewModel::updateItemStatus,
                             sizeList = viewModel.size,
                             selectedSize = viewModel.selectedSize,
-                            onSizeSelected = viewModel::updateSelectedSize
+                            onSizeSelected = viewModel::updateSelectedSize,
+                            price = viewModel.price
                         )
 
                     }
